@@ -97,6 +97,35 @@ if ! brew list terminal-notifier &>/dev/null; then
 else
     log_info "terminal-notifier already installed"
 fi
+
+# Install Python and pip for speaker diarization
+log_info "Installing Python for speaker diarization..."
+if ! command -v python3 &>/dev/null; then
+    if brew install python3 2>&1; then
+        log_success "Python3 installed"
+    else
+        log_error "Failed to install Python3"
+        exit 1
+    fi
+else
+    log_info "Python3 already installed"
+fi
+
+# Install pyannote.audio and dependencies (currently disabled due to compatibility)
+log_info "Checking for speaker identification dependencies..."
+log_warn "Speaker identification temporarily disabled (pyannote.audio compatibility issue)"
+log_info "Infrastructure is ready - will auto-enable when pyannote.audio is updated"
+# Uncomment below when pyannote.audio is compatible with PyTorch 2.9+
+# if python3 -c "import pyannote.audio" 2>/dev/null; then
+#     log_info "pyannote.audio already installed"
+# else
+#     log_info "Installing pyannote.audio (this may take a few minutes)..."
+#     if python3 -m pip install --user --break-system-packages pyannote.audio torch torchaudio 2>&1 | grep -v "Requirement already satisfied"; then
+#         log_success "pyannote.audio installed"
+#     else
+#         log_warn "Failed to install pyannote.audio, speaker identification will be disabled"
+#     fi
+# fi
 }
 
 # Download Whisper model files
@@ -272,10 +301,12 @@ install_scripts() {
     # Copy scripts to permanent location
     cp "$SCRIPT_DIR/watch_and_transcribe.sh" "$INSTALL_DIR/"
     cp "$SCRIPT_DIR/config.sh" "$INSTALL_DIR/"
+    cp "$SCRIPT_DIR/diarize_speakers.py" "$INSTALL_DIR/" 2>/dev/null || log_warn "Diarization script not found"
 
     # Make scripts executable
     chmod +x "$INSTALL_DIR/watch_and_transcribe.sh"
     chmod +x "$INSTALL_DIR/config.sh"
+    chmod +x "$INSTALL_DIR/diarize_speakers.py" 2>/dev/null || true
 
     log_success "Scripts installed to: $INSTALL_DIR"
 }

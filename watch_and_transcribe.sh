@@ -159,12 +159,6 @@ transcribe_file() {
         whisper_args+=("--output-txt")
     fi
 
-    # Add diarization if enabled
-    if [[ "$ENABLE_DIARIZATION" == "true" ]]; then
-        whisper_args+=("--diarize")
-        log "DEBUG" "Speaker diarization enabled"
-    fi
-
     if ! "$whisper_cmd" "${whisper_args[@]}" 2>/dev/null; then
         log "ERROR" "Whisper transcription failed for: $filename.mp3"
         rm -f "$temp_transcript"
@@ -188,15 +182,78 @@ transcribe_file() {
         return 1
     fi
 
+    # Perform speaker diarization if enabled
+    local diarization_file="/tmp/${filename}_diarization.json"
+    if [[ "$ENABLE_SPEAKER_DIARIZATION" == "true" ]] && command -v python3 &>/dev/null; then
+        log "INFO" "Performing speaker diarization..."
+        
+        local diarize_script="$PROJECT_ROOT/diarize_speakers.py"
+        if [[ ! -f "$diarize_script" ]]; then
+            diarize_script="$SCRIPT_DIR/diarize_speakers.py"
+        fi
+        
+        if [[ -f "$diarize_script" ]]; then
+            local diarize_args=("$input_file" "$diarization_file")
+            [[ -n "$MIN_SPEAKERS" ]] && diarize_args+=("$MIN_SPEAKERS")
+            [[ -n "$MAX_SPEAKERS" ]] && diarize_args+=("$MAX_SPEAKERS")
+            
+            if python3 "$diarize_script" "${diarize_args[@]}" 2>&1 | tee -a /tmp/diarization.log; then
+                log "INFO" "Speaker diarization completed"
+            else
+                log "WARN" "Speaker diarization failed, continuing without speaker labels"
+                rm -f "$diarization_file"
+            fi
+        else
+            log "WARN" "Diarization script not found, skipping speaker identification"
+        fi
+    fi
+
+    # Merge transcript with speaker labels if diarization was successful
+    if [[ -f "$diarization_file" ]]; then
+        log "INFO" "Merging transcript with speaker labels..."
+        local temp_merged="/tmp/${filename}_merged.txt"
+        
+        # Use Python to merge the transcript with speaker labels
+        python3 -c "
+import json
+import sys
+
+# Load diarization data
+with open('$diarization_file', 'r') as f:
+    diarization = json.load(f)
+
+# Read transcript
+with open('$temp_transcript', 'r') as f:
+    transcript_lines = f.readlines()
+
+# Simple merging: add speaker labels to transcript
+# This is a basic implementation - could be improved with better alignment
+print('## Transcript with Speaker Labels\n')
+for segment in diarization['segments']:
+    start_time = int(segment['start'])
+    end_time = int(segment['end'])
+    speaker = segment['speaker']
+    print(f'**[{start_time//60:02d}:{start_time%60:02d} - {end_time//60:02d}:{end_time%60:02d}] {speaker}:**')
+    print()
+
+print('\n## Full Transcript\n')
+for line in transcript_lines:
+    print(line, end='')
+" > "$temp_merged" 2>/dev/null || cat "$temp_transcript" > "$temp_merged"
+        
+        temp_transcript="$temp_merged"
+    fi
+
     # Append transcript content to Markdown file
     echo "" >> "$markdown_file"
     cat "$temp_transcript" >> "$markdown_file"
     echo "" >> "$markdown_file"
     echo "---" >> "$markdown_file"
     echo "*Transcribed using Local Whisper Transcriber*" >> "$markdown_file"
+    [[ "$ENABLE_SPEAKER_DIARIZATION" == "true" ]] && echo "*Speaker identification powered by pyannote.audio*" >> "$markdown_file"
 
     # Clean up temp files
-    rm -f "$temp_transcript" "${temp_transcript}.txt" "${temp_transcript}.srt" "${temp_transcript}.vtt" 2>/dev/null || true
+    rm -f "$temp_transcript" "${temp_transcript}.txt" "${temp_transcript}.srt" "${temp_transcript}.vtt" "$diarization_file" "/tmp/${filename}_merged.txt" 2>/dev/null || true
 
     log "INFO" "Transcription completed: $filename.mp3 -> ${filename}.md"
     

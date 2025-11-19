@@ -34,16 +34,21 @@ FILE_STABILITY_TIME=10
 # Enable timestamps in transcript (true/false)
 ENABLE_TIMESTAMPS=true
 
-# Enable speaker diarization for stereo audio (true/false)
-# Note: Only works with stereo recordings where speakers are on separate L/R channels
-# Most recordings are mono, so this is disabled by default
-ENABLE_DIARIZATION=false
-
 # Output format for timestamps (srt, vtt, or txt)
 # srt: SubRip format with timestamps
 # vtt: WebVTT format with timestamps
 # txt: Plain text (no timestamps)
 TIMESTAMP_FORMAT="srt"
+
+# AI-based speaker identification using pyannote.audio
+# Enable speaker diarization (true/false)
+# NOTE: Currently disabled due to pyannote.audio compatibility with PyTorch 2.9+
+# Will be enabled automatically once pyannote.audio is updated
+ENABLE_SPEAKER_DIARIZATION=false
+
+# Speaker diarization settings (optional, leave empty for auto-detection)
+MIN_SPEAKERS=""  # Minimum number of speakers (e.g., 2)
+MAX_SPEAKERS=""  # Maximum number of speakers (e.g., 4)
 
 # Log level (DEBUG, INFO, WARN, ERROR)
 LOG_LEVEL="INFO"

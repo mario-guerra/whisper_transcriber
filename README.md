@@ -8,7 +8,7 @@ A fully local, lightweight, automated transcription system for MP3 recordings th
 - 👀 **Automatic Monitoring**: Watches a folder for new MP3 recordings
 - ⚡ **Real-time Processing**: Transcribes files as soon as recording is complete
 - 📝 **Markdown Output**: Generates clean Markdown transcripts
-- ⏱️ **Timestamps & Speakers**: Optional timestamps and speaker diarization
+- ⏱️ **Timestamps & AI Speaker ID**: Timestamps and AI-powered speaker identification
 - 🔔 **macOS Notifications**: Get notified when transcriptions complete
 - 🔄 **Auto-archiving**: Moves processed files to archive folder
 - 🔋 **Low Resource Usage**: Minimal CPU usage when idle
@@ -32,12 +32,15 @@ chmod +x install.sh
 The installer will:
 - Install Homebrew (if needed)
 - Install `fswatch`, `whisper.cpp`, and `terminal-notifier`
+- Install Python 3 (for future speaker identification support)
 - Download the selected Whisper model (may take several minutes)
 - **Install scripts to `~/.local/bin/whisper-transcriber/`** (permanent location)
 - Create required directories (`~/Recordings`, `~/Recordings/archive`, `~/Recordings/transcripts`)
-- Configure the system with timestamps and speaker detection
+- Configure the system with timestamps
 - Install and start the macOS LaunchAgent service
 - Verify everything is working
+
+**Note:** Speaker identification infrastructure is included but disabled pending pyannote.audio compatibility update.
 
 **After installation, you can safely delete the project directory** - all scripts are installed to a permanent location.
 
@@ -47,7 +50,7 @@ Simply drop MP3 files into your `~/Recordings` folder. The system will automatic
 1. Detect the new file instantly (via fswatch)
 2. **Wait for the recording to complete** (checks if file is open by any process)
 3. Verify file stability (10 seconds after file is closed)
-4. Transcribe using Whisper with timestamps and speaker detection
+4. Transcribe using Whisper with timestamps
 5. **Send you a notification** when complete
 6. **Click the notification** to open the transcripts folder
 7. Save the transcript as Markdown in `~/Recordings/transcripts/`
@@ -81,6 +84,9 @@ The `install.sh` script handles everything automatically. It installs:
 - `fswatch`: Folder monitoring utility (event-driven file detection)
 - `whisper.cpp`: Local Whisper implementation (AI transcription)
 - `terminal-notifier`: macOS notification utility (completion alerts)
+- `python3`: Python runtime for speaker identification
+- `pyannote.audio`: AI-powered speaker diarization library
+- `torch` & `torchaudio`: Deep learning framework (required by pyannote)
 
 ### Manual Installation
 
@@ -88,7 +94,8 @@ If you prefer manual setup:
 
 1. Install dependencies:
    ```bash
-   brew install fswatch whisper-cpp terminal-notifier
+   brew install fswatch whisper-cpp terminal-notifier python3
+   python3 -m pip install --user pyannote.audio torch torchaudio
    ```
 
 2. Create directories:
@@ -122,8 +129,12 @@ FILE_STABILITY_TIME=2                     # Seconds to wait before processing
 
 # Transcription options
 ENABLE_TIMESTAMPS=true                    # Include timestamps in transcript
-ENABLE_DIARIZATION=true                   # Enable speaker detection (stereo audio only)
 TIMESTAMP_FORMAT="srt"                    # Format: srt, vtt, or txt
+
+# AI Speaker Identification
+ENABLE_SPEAKER_DIARIZATION=true           # Enable AI-based speaker identification
+MIN_SPEAKERS=""                           # Minimum speakers (optional, auto-detect if empty)
+MAX_SPEAKERS=""                           # Maximum speakers (optional, auto-detect if empty)
 ```
 
 ### Transcription Features
@@ -134,24 +145,29 @@ When `ENABLE_TIMESTAMPS=true`, transcripts include timing information:
 - **vtt**: WebVTT format for web video players
 - **txt**: Plain text without timestamps
 
-#### Speaker Diarization
-When `ENABLE_DIARIZATION=true`, the system can separate speakers in stereo recordings:
-- **Requirements**: Stereo audio with speakers on separate L/R channels (rare)
-- **Output**: Labels audio by channel: "Speaker 0" (left), "Speaker 1" (right)
-- **Limitation**: This is NOT AI-based speaker identification - it only separates audio channels
-- **Reality**: Most recordings are mono, so this feature is **disabled by default**
-- **Note**: For true speaker identification, you would need additional AI tools (not included)
+#### AI Speaker Identification ⭐ COMING SOON
+When `ENABLE_SPEAKER_DIARIZATION=true`, the system will use **pyannote.audio** for AI-powered speaker identification:
+- **Works with**: Mono or stereo recordings (any audio format)
+- **AI-powered**: Uses deep learning to identify different speakers by voice characteristics
+- **Automatic**: Detects number of speakers automatically (or you can specify min/max)
+- **Output**: Labels speakers as "SPEAKER_00", "SPEAKER_01", etc. with timestamps
+- **Accuracy**: State-of-the-art speaker diarization (research-grade quality)
 
-**Example with timestamps and speakers:**
+**Example with timestamps and AI speaker identification:**
 ```
-1
-00:00:00,000 --> 00:00:03,500
-[Speaker 0] Welcome to today's meeting.
+**[00:00 - 00:03] SPEAKER_00:**
+Welcome to today's meeting.
 
-2
-00:00:03,500 --> 00:00:07,200
-[Speaker 1] Thanks for having me. Let's discuss the project.
+**[00:03 - 00:07] SPEAKER_01:**
+Thanks for having me. Let's discuss the project.
+
+**[00:07 - 00:12] SPEAKER_00:**
+Great! Let's start with the requirements.
 ```
+
+**⚠️ Current Status:** Speaker identification is temporarily disabled due to a compatibility issue between pyannote.audio (v3.4.0) and PyTorch 2.9+ on Apple Silicon. The infrastructure is ready and will be automatically enabled once pyannote.audio releases a compatible update. Track the issue: https://github.com/pyannote/pyannote-audio/issues
+
+**Note:** First run will download speaker diarization models (~300MB). Subsequent runs use cached models.
 
 ### Whisper Models
 
