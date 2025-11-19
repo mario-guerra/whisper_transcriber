@@ -45,12 +45,15 @@ The installer will:
 
 Simply drop MP3 files into your `~/Recordings` folder. The system will automatically:
 1. Detect the new file instantly (via fswatch)
-2. Wait for the recording to complete (file stability check)
-3. Transcribe using Whisper with timestamps and speaker detection
-4. **Send you a notification** when complete
-5. **Click the notification** to open the transcripts folder
-6. Save the transcript as Markdown in `~/Recordings/transcripts/`
-7. Move the MP3 to `~/Recordings/archive/`
+2. **Wait for the recording to complete** (checks if file is open by any process)
+3. Verify file stability (10 seconds after file is closed)
+4. Transcribe using Whisper with timestamps and speaker detection
+5. **Send you a notification** when complete
+6. **Click the notification** to open the transcripts folder
+7. Save the transcript as Markdown in `~/Recordings/transcripts/`
+8. Move the MP3 to `~/Recordings/archive/`
+
+**Safe for active recording:** The system uses `lsof` to check if the file is open by any process (like your recording app), and only starts transcription after the file is closed AND stable.
 
 ### 3. Get Notified & View Transcripts
 
@@ -132,10 +135,12 @@ When `ENABLE_TIMESTAMPS=true`, transcripts include timing information:
 - **txt**: Plain text without timestamps
 
 #### Speaker Diarization
-When `ENABLE_DIARIZATION=true`, the system attempts to identify different speakers:
-- **Requirements**: Stereo audio with speakers on separate channels
-- **Output**: Labels speakers as "Speaker 0", "Speaker 1", etc.
-- **Note**: Works best with recordings where each speaker is on a dedicated audio channel
+When `ENABLE_DIARIZATION=true`, the system can separate speakers in stereo recordings:
+- **Requirements**: Stereo audio with speakers on separate L/R channels (rare)
+- **Output**: Labels audio by channel: "Speaker 0" (left), "Speaker 1" (right)
+- **Limitation**: This is NOT AI-based speaker identification - it only separates audio channels
+- **Reality**: Most recordings are mono, so this feature is **disabled by default**
+- **Note**: For true speaker identification, you would need additional AI tools (not included)
 
 **Example with timestamps and speakers:**
 ```

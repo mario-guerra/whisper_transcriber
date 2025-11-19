@@ -27,15 +27,17 @@ WHISPER_MODEL_PATH="/Users/mguerra/.whisper/ggml-base.bin"
 
 # File completion detection settings
 # Time in seconds to wait after last modification before considering file complete
-FILE_STABILITY_TIME=2
+# This is checked AFTER the file is no longer open by any process
+FILE_STABILITY_TIME=10
 
 # Transcription options
 # Enable timestamps in transcript (true/false)
 ENABLE_TIMESTAMPS=true
 
 # Enable speaker diarization for stereo audio (true/false)
-# Note: Only works with stereo recordings where speakers are on different channels
-ENABLE_DIARIZATION=true
+# Note: Only works with stereo recordings where speakers are on separate L/R channels
+# Most recordings are mono, so this is disabled by default
+ENABLE_DIARIZATION=false
 
 # Output format for timestamps (srt, vtt, or txt)
 # srt: SubRip format with timestamps

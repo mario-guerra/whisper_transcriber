@@ -48,39 +48,50 @@ log "INFO" "Transcript folder: $TRANSCRIPT_FOLDER"
 log "INFO" "Whisper model: $WHISPER_MODEL"
 
 # Function to check if a file is complete (not being written to)
-# Waits for FILE_STABILITY_TIME seconds of no modification
+# Uses multiple methods to ensure file is truly complete
 is_file_complete() {
     local file_path="$1"
-    local last_size=""
-    local current_size=""
-    local stable_count=0
-    local max_checks=30  # Maximum 30 checks (30 seconds with 1s sleep)
+    local max_wait=300  # Maximum 5 minutes wait
+    local check_interval=5  # Check every 5 seconds
+    local checks=$((max_wait / check_interval))
+    
+    log "INFO" "Waiting for file to complete: $(basename "$file_path")"
 
-    log "DEBUG" "Checking if file is complete: $file_path"
-
-    for ((i=1; i<=max_checks; i++)); do
+    for ((i=1; i<=checks; i++)); do
         if [[ ! -f "$file_path" ]]; then
-            log "DEBUG" "File no longer exists: $file_path"
+            log "WARN" "File no longer exists: $file_path"
             return 1
         fi
 
-        current_size=$(stat -f%z "$file_path" 2>/dev/null || stat -c%s "$file_path" 2>/dev/null || echo "0")
-
-        if [[ "$current_size" == "$last_size" ]]; then
-            ((stable_count++))
-            if [[ $stable_count -ge $FILE_STABILITY_TIME ]]; then
-                log "DEBUG" "File appears complete: $file_path"
-                return 0
-            fi
-        else
-            stable_count=0
-            last_size="$current_size"
+        # Method 1: Check if file is open by any process (macOS)
+        local open_count=$(lsof "$file_path" 2>/dev/null | grep -v COMMAND | wc -l | tr -d ' ')
+        if [[ "$open_count" -gt 0 ]]; then
+            log "DEBUG" "File still open by process (check $i/$checks)"
+            sleep $check_interval
+            continue
         fi
 
-        sleep 1
+        # Method 2: Check file modification time (hasn't been modified in FILE_STABILITY_TIME seconds)
+        if [[ "$(uname)" == "Darwin" ]]; then
+            local mod_time=$(stat -f %m "$file_path" 2>/dev/null)
+        else
+            local mod_time=$(stat -c %Y "$file_path" 2>/dev/null)
+        fi
+        local current_time=$(date +%s)
+        local time_diff=$((current_time - mod_time))
+        
+        if [[ $time_diff -lt $FILE_STABILITY_TIME ]]; then
+            log "DEBUG" "File modified ${time_diff}s ago, waiting for ${FILE_STABILITY_TIME}s stability"
+            sleep $check_interval
+            continue
+        fi
+
+        # Both checks passed - file is complete
+        log "INFO" "File confirmed complete: $(basename "$file_path")"
+        return 0
     done
 
-    log "WARN" "File stability timeout reached for: $file_path"
+    log "ERROR" "File completion timeout after ${max_wait}s: $(basename "$file_path")"
     return 1
 }
 
